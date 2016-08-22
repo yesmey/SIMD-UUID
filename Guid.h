@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+
 #include <smmintrin.h>
 
 class Guid
@@ -23,12 +24,6 @@ public:
 
     int Parse(const char* ptr)
     {
-        // 8%
-        if (ptr[8] != '-' || ptr[13] != '-' || ptr[18] != '-' || ptr[23] != '-')
-        {
-            return -1;
-        }
-
         const __m128i zero = loadSimdCharArray('0');
 
         const __m128i str = _mm_loadu_si128(reinterpret_cast<const __m128i *>(ptr));
@@ -96,7 +91,8 @@ public:
         mask2 = _mm_blendv_epi8(mask2, fixedUppercase2, aboveNineMask2);
 
         // 12%
-        const __m128i hi = _mm_slli_epi16(_mm_sub_epi8(mask1, zero), 4);
+        __m128i hi = _mm_sub_epi8(mask1, zero);
+        hi = _mm_slli_epi16(hi, 4);
         const __m128i lo = _mm_sub_epi8(mask2, zero);
 
         // 9%
