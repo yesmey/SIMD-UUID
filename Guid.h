@@ -23,7 +23,7 @@ public:
 
     int Parse(const char* ptr)
     {
-        // 5%
+        // 8%
         if (ptr[8] != '-' || ptr[13] != '-' || ptr[18] != '-' || ptr[23] != '-')
         {
             return -1;
@@ -34,7 +34,7 @@ public:
         const __m128i str = _mm_loadu_si128(reinterpret_cast<const __m128i *>(ptr));
         const __m128i str2 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(ptr + 19));
 
-        // 10%
+        // 8%
         if (_mm_movemask_epi8(_mm_cmplt_epi8(str, zero)) != 8448 ||
             _mm_movemask_epi8(_mm_cmplt_epi8(str2, zero)) != 16)
             return -1;
@@ -95,10 +95,13 @@ public:
         mask1 = _mm_blendv_epi8(mask1, fixedUppercase1, aboveNineMask1);
         mask2 = _mm_blendv_epi8(mask2, fixedUppercase2, aboveNineMask2);
 
+        // 12%
         const __m128i hi = _mm_slli_epi16(_mm_sub_epi8(mask1, zero), 4);
         const __m128i lo = _mm_sub_epi8(mask2, zero);
 
+        // 9%
         _mm_store_si128(reinterpret_cast<__m128i *>(&_uuid.data[0]), _mm_xor_si128(hi, lo));
+        // 10%
         return 0;
     }
 
