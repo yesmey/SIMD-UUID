@@ -12,23 +12,24 @@
 #define NO_INLINE __attribute__ ((noinline))
 #endif
 
-enum BracketType
-{
-    BRACKET_NONE = 0,
-    BRACKET_PARENTHESIS,
-    BRACKET_BRACES
-};
-
-enum HexCaseType
-{
-    HEX_CASE_NONE = 0,
-    HEX_CASE_LOWER,
-    HEX_CASE_UPPER
-};
-
 class UUID final
 {
 public:
+
+    enum BracketType
+    {
+        BRACKET_NONE = 0,
+        BRACKET_PARENTHESIS,
+        BRACKET_BRACES
+    };
+
+    enum HexCaseType
+    {
+        HEX_CASE_NONE = 0,
+        HEX_CASE_LOWER,
+        HEX_CASE_UPPER
+    };
+
     UUID() = default;
     ~UUID() = default;
 
@@ -52,16 +53,24 @@ public:
             // Expect the string string to start and end with bracers (no trailing whitespace allowed)
             if (ptr[0] == '{' && ptr[37] == '}' && ptr[38] == '\0')
                 return innerParse<hexCase>(ptr + 1);
-            return 1;
         }
         if (bracket == BRACKET_PARENTHESIS)
         {
             // Same as above with parenthesis
             if (ptr[0] == '(' && ptr[37] == ')' && ptr[38] == '\0')
                 return innerParse<hexCase>(ptr + 1);
-            return 1;
         }
-        return innerParse<hexCase>(ptr);
+        else
+        {
+            if (ptr[36] == '\0')
+                return innerParse<hexCase>(ptr);
+        }
+        return 1;
+    }
+
+    unsigned char const* Data() const
+    {
+        return &_uuid.data[0];
     }
 
 private:
@@ -154,7 +163,9 @@ private:
 
         return 1;
     }
-    public:
+
+private:
+
     union alignas(16) uuid
     {
         unsigned char data[16];

@@ -30,12 +30,12 @@ int main(int arg, char** args)
     for (int i = 0; i < 1000000; i++)
     {
         doNotOptimizeAway(std::move(str));
-        g.Parse<BRACKET_NONE, HEX_CASE_LOWER>(str.c_str());
+        g.Parse<UUID::BRACKET_NONE, UUID::HEX_CASE_LOWER>(str.c_str());
     }
 
     auto end = std::chrono::high_resolution_clock::now();
     auto diff = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     auto count = (double)diff.count() / 1000;
-    std::cout << "Errors: " << g._uuid.data[0] << ". Parsed in " << count << " ms\n";
+    std::cout << "Errors: " << g.Data()[0] << ". Parsed in " << count << " ms\n";
     return 0;
 }
