@@ -1,3 +1,5 @@
 # SIMD-Guid
 
-SSE4 implemented Guid (UUID) parsing.
+SIMD implemented UUID parsing (stored with big endianness).
+
+Requires SSE4.2
