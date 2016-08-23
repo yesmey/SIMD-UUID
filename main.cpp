@@ -3,39 +3,39 @@
 
 #include <iostream>
 #include <chrono>
-#include <Windows.h>
+
+#ifdef _MSC_VER
+
+#pragma optimize("", off)
+template <class T>
+void doNotOptimizeAway(T&& datum) {
+    datum = datum;
+}
+#pragma optimize("", on)
+
+#else
+template <class T>
+void doNotOptimizeAway(T&& datum) {
+    asm volatile("" : "+r" (datum));
+}
+#endif
 
 int main(int arg, char** args)
 {
-    std::string str = "256a4180-65aa-42ec-a945-5fd21dec0538";
+    std::string str = "53647693-49d7-4da3-aa2e-ad2a8b61a579";
 
-    auto start = std::chrono::steady_clock::now();
-    int errors = 0;
-    for (int i = 0; i < 10000000; i++)
+    UUID g;
+    auto start = std::chrono::high_resolution_clock::now();
+
+    for (int i = 0; i < 1000000; i++)
     {
-        UUID u;
-        errors += u.Parse(str.c_str());
+        doNotOptimizeAway(std::move(str));
+        g.Parse<BRACKET_NONE, HEX_CASE_LOWER>(str.c_str());
     }
 
-    auto end = std::chrono::steady_clock::now();
-    auto diff = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-    auto count = (double)diff.count() / 10000000;
-    std::cout << "Errors: " << errors << ". Parsed in " << count << " ms\n";
-
-    LPWSTR guidstr = L"{256a4180-65aa-42ec-a945-5fd21dec0538}";
-
-    start = std::chrono::steady_clock::now();
-    errors = 0;
-    for (int i = 0; i < 10000000; i++)
-    {
-        GUID guid;
-        errors += CLSIDFromString(guidstr, (LPCLSID)&guid);
-    }
-
-    end = std::chrono::steady_clock::now();
-    diff = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-    count = (double)diff.count() / 10000000;
-    std::cout << "Errors: " << errors << ". Parsed in " << count << " ms\n";
-
+    auto end = std::chrono::high_resolution_clock::now();
+    auto diff = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    auto count = (double)diff.count() / 1000;
+    std::cout << "Errors: " << g._uuid.data[0] << ". Parsed in " << count << " ms\n";
     return 0;
 }
