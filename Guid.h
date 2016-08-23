@@ -21,7 +21,7 @@ public:
         __declspec(align(16)) const char y[17] = { chr, chr, chr, chr, chr, chr, chr, chr, chr, chr, chr, chr, chr, chr, chr, chr };
         return _mm_load_si128(reinterpret_cast<const __m128i*>(&y));
     }
-    
+
     static __m128i loadAllowedCharRange()
     {
         __declspec(align(16)) const char _charRanges[17] = { '0', '9', 'A', 'Z', 'a', 'z', 0, -1, 0, -1, 0, -1, 0, -1, 0, -1 };
@@ -37,10 +37,12 @@ public:
 
         auto cmp = _mm_cmpistrm(allowedCharRange, str, _SIDD_UBYTE_OPS | _SIDD_CMP_RANGES | _SIDD_NEGATIVE_POLARITY);
         auto cmp2 = _mm_cmpistrm(allowedCharRange, str2, _SIDD_UBYTE_OPS | _SIDD_CMP_RANGES | _SIDD_NEGATIVE_POLARITY);
+        auto cmpEq = _mm_xor_si128(cmp, _mm_set_epi64x(0LL, 8448LL));
+        auto cmpEq2 = _mm_xor_si128(cmp2, _mm_set_epi64x(0LL, 16LL));
 
         // Checks if all chars (except all the expected '-') are between: 0-9, A-Z and a-z)
-        if (!_mm_testc_si128(_mm_cmpeq_epi64(cmp, _mm_set_epi64x(0LL, 8448LL)), _mm_set1_epi64x(-1)) ||
-            !_mm_testc_si128(_mm_cmpeq_epi64(cmp2, _mm_set_epi64x(0LL, 16LL)), _mm_set1_epi64x(-1)))
+        if (!_mm_testz_si128(cmpEq, cmpEq) ||
+            !_mm_testz_si128(cmpEq2, cmpEq2))
             return -1;
 
         const __m128i MASK_1 = _mm_setr_epi8(
