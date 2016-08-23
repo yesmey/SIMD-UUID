@@ -1,4 +1,4 @@
-#include "Guid.h"
+#include "UUID.h"
 #include <string>
 
 #include <iostream>
@@ -13,8 +13,8 @@ int main(int arg, char** args)
     int errors = 0;
     for (int i = 0; i < 10000000; i++)
     {
-        Guid g;
-        errors += g.Parse(str.c_str());
+        UUID u;
+        errors += u.Parse(str.c_str());
     }
 
     auto end = std::chrono::steady_clock::now();
