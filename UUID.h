@@ -1,6 +1,6 @@
 #pragma once
 #include <cstdint>
-
+#include <string>
 #include <nmmintrin.h>
 #include <type_traits>
 
@@ -31,38 +31,63 @@ public:
     };
 
     UUID() = default;
+
+    UUID(std::string const& str)
+    {
+        Parse(str);
+    }
+
+    UUID(UUID const& val)
+    {
+        memcpy(&_uuid.data[0], &val._uuid.data[0], 16);
+    }
+
+    //UUID(UUID&& val)
+    //{
+    //    memmove(&_uuid.data[0], &val._uuid.data[0], 16);
+    //}
+
+    /*template <typename... T>
+    UUID(T... ts)
+    {
+        constexpr int size = sizeof...(T);
+        if (size == 16)
+        {
+            _uuid.data { ts... };
+        }
+        else if (size == 4)
+        {
+            _uuid.uints { ts... };
+        }
+        else if (size == 2)
+        {
+            _uuid.ulongs { ts... };
+        }
+        else
+            static_assert(false);
+    }*/
+
     ~UUID() = default;
 
-    static __m128i loadSimdCharArray(const char& chr)
-    {
-        ALIGNED_(16) const char y[17] = { chr, chr, chr, chr, chr, chr, chr, chr, chr, chr, chr, chr, chr, chr, chr, chr };
-        return _mm_load_si128(reinterpret_cast<const __m128i*>(&y));
-    }
-
-    static __m128i loadAllowedCharRange()
-    {
-        ALIGNED_(16) const char _charRanges[17] = { '0', '9', 'A', 'Z', 'a', 'z', 0, -1, 0, -1, 0, -1, 0, -1, 0, -1 };
-        return _mm_load_si128(reinterpret_cast<const __m128i*>(&_charRanges));
-    }
-
     template<BracketType bracket = BRACKET_NONE, HexCaseType hexCase = HEX_CASE_NONE>
-    int Parse(const char* ptr)
+    int Parse(std::string const& str)
     {
+        auto ptr = str.c_str();
         if (bracket == BRACKET_BRACES)
         {
             // Expect the string string to start and end with bracers (no trailing whitespace allowed)
-            if (ptr[0] == '{' && ptr[37] == '}' && ptr[38] == '\0')
+            if (ptr[0] == '{' && ptr[37] == '}' && str.length() == 38)
                 return innerParse<hexCase>(ptr + 1);
         }
         if (bracket == BRACKET_PARENTHESIS)
         {
             // Same as above with parenthesis
-            if (ptr[0] == '(' && ptr[37] == ')' && ptr[38] == '\0')
+            if (ptr[0] == '(' && ptr[37] == ')' && str.length() == 38)
                 return innerParse<hexCase>(ptr + 1);
         }
         else
         {
-            if (ptr[36] == '\0')
+            if (str.length() == 36)
                 return innerParse<hexCase>(ptr);
         }
         return 1;
@@ -123,7 +148,7 @@ private:
         mask2 = _mm_or_si128(mask2, mask4);
 
         // Check if all characters are between 0-9, A-Z or a-z
-        const __m128i allowedCharRange = loadAllowedCharRange();
+        const __m128i allowedCharRange = loadAllowedCharRange<hexCase>();
         const int cmp = _mm_cmpistri(allowedCharRange, mask1, _SIDD_UBYTE_OPS | _SIDD_CMP_RANGES | _SIDD_NEGATIVE_POLARITY);
         const int cmp2 = _mm_cmpistri(allowedCharRange, mask2, _SIDD_UBYTE_OPS | _SIDD_CMP_RANGES | _SIDD_NEGATIVE_POLARITY);
 
@@ -169,9 +194,43 @@ private:
     union alignas(16) uuid
     {
         unsigned char data[16];
-        uint64_t ulongs[2];
         uint32_t uints[4];
+        uint64_t ulongs[2];
+
     };
 
     alignas(128) uuid _uuid;
+
+    /*
+    * Helper method for loading an aligned 16 byte repeated sse val
+    */
+
+    static __m128i loadSimdCharArray(const char& chr)
+    {
+        ALIGNED_(16) const char y[17] = { chr, chr, chr, chr, chr, chr, chr, chr, chr, chr, chr, chr, chr, chr, chr, chr };
+        return _mm_load_si128(reinterpret_cast<const __m128i*>(&y));
+    }
+
+    /*
+    * Helper method for loading the allowed char range depending on HexCaseType (replace with constexpr if whenever avaliable)
+    */
+
+    template<HexCaseType hexCase>
+    auto static loadAllowedCharRange() -> typename std::enable_if<hexCase == HEX_CASE_UPPER, __m128i>::type
+    {
+        ALIGNED_(16) const char _charRanges[17] = { '0', '9', 'A', 'Z', 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1 };
+        return _mm_load_si128(reinterpret_cast<const __m128i*>(&_charRanges));
+    }
+    template<HexCaseType hexCase>
+    auto static loadAllowedCharRange() -> typename std::enable_if<hexCase == HEX_CASE_LOWER, __m128i>::type
+    {
+        ALIGNED_(16) const char _charRanges[17] = { '0', '9', 'a', 'z', 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1 };
+        return _mm_load_si128(reinterpret_cast<const __m128i*>(&_charRanges));
+    }
+    template<HexCaseType hexCase>
+    auto static loadAllowedCharRange() -> typename std::enable_if<hexCase == HEX_CASE_NONE, __m128i>::type
+    {
+        ALIGNED_(16) const char _charRanges[17] = { '0', '9', 'A', 'Z', 'a', 'z', 0, -1, 0, -1, 0, -1, 0, -1, 0, -1 };
+        return _mm_load_si128(reinterpret_cast<const __m128i*>(&_charRanges));
+    }
 };

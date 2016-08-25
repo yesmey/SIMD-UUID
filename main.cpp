@@ -30,7 +30,7 @@ int main(int arg, char** args)
     for (int i = 0; i < 1000000; i++)
     {
         doNotOptimizeAway(std::move(str));
-        g.Parse<UUID::BRACKET_NONE, UUID::HEX_CASE_LOWER>(str.c_str());
+        g.Parse<UUID::BRACKET_NONE, UUID::HEX_CASE_LOWER>(str);
     }
 
     auto end = std::chrono::high_resolution_clock::now();
