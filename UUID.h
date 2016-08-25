@@ -178,6 +178,8 @@ private:
             const __m128i fixedUppercase1 = _mm_sub_epi8(letterMask1, toHex);
             const __m128i fixedUppercase2 = _mm_sub_epi8(letterMask2, toHex);
 
+            //mask1 = _mm_or_si128(_mm_and_si128(aboveNineMask1, fixedUppercase1), _mm_andnot_si128(aboveNineMask1, mask1));
+            //mask2 = _mm_or_si128(_mm_and_si128(aboveNineMask2, fixedUppercase2), _mm_andnot_si128(aboveNineMask2, mask2));
             mask1 = _mm_blendv_epi8(mask1, fixedUppercase1, aboveNineMask1);
             mask2 = _mm_blendv_epi8(mask2, fixedUppercase2, aboveNineMask2);
 
