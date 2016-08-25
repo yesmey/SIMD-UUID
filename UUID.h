@@ -39,7 +39,11 @@ public:
 
     UUID(UUID const& val)
     {
-        memcpy(&_uuid.data[0], &val._uuid.data[0], 16);
+        _uuid.ulongs[0] = val._uuid.ulongs[0];
+        _uuid.ulongs[1] = val._uuid.ulongs[1];
+        //const __m128i loaded = _mm_load_si128(reinterpret_cast<const __m128i *>(&val._uuid.data[0]));
+        //_mm_store_si128(reinterpret_cast<__m128i *>(&_uuid.data[0]), loaded);
+
     }
 
     //UUID(UUID&& val)
