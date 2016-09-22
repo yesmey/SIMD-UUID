@@ -24,13 +24,13 @@ int main(int arg, char** args)
 {
     std::string str = "53647693-49d7-4da3-aa2e-ad2a8b61a579";
 
-    UUID g;
+    meyr::UUID g;
     auto start = std::chrono::high_resolution_clock::now();
 
     for (int i = 0; i < 1000000; i++)
     {
         doNotOptimizeAway(std::move(str));
-        g.Parse<UUID::BRACKET_NONE, UUID::HEX_CASE_LOWER>(str);
+        g.Parse<meyr::UUID::BRACKET_NONE, meyr::UUID::HEX_CASE_LOWER, meyr::UUID::VALIDATE_NONE>(str);
     }
 
     auto end = std::chrono::high_resolution_clock::now();
