@@ -47,7 +47,7 @@ namespace meyr {
 
         UUID(UUID const& val)
         {
-            _mm_store_si128(reinterpret_cast<__m128i *>(&_uuid.data[0]), _mm_load_si128(reinterpret_cast<const __m128i *>(&val._uuid.data[0])));
+            _mm_store_si128(reinterpret_cast<__m128i *>(_uuid.data), _mm_load_si128(reinterpret_cast<const __m128i *>(&val._uuid.data[0])));
         }
 
         ~UUID() = default;
@@ -81,19 +81,20 @@ namespace meyr {
             return &_uuid.data[0];
         }
 
-        bool operator== (UUID const& other) const noexcept
+        bool operator ==(UUID const& other) const noexcept
         {
             __m128i mm_left = _mm_load_si128(reinterpret_cast<const __m128i*>(_uuid.data));
             __m128i mm_right = _mm_load_si128(reinterpret_cast<const __m128i*>(other._uuid.data));
-            __m128i test = _mm_cmpeq_epi32(mm_left, mm_right);
-            return _mm_testc_si128(test, _mm_cmpeq_epi32((_mm_cmpeq_epi32(mm_left, mm_right)),(_mm_cmpeq_epi32(mm_left, mm_right)))) != 0;
+            __m128i eq = _mm_cmpeq_epi32(mm_left, mm_right);
+            return _mm_testc_si128(eq, _mm_cmpeq_epi32(eq, eq)) != 0;
         }
-        bool operator!=(UUID const& other) const noexcept
+
+        bool operator !=(UUID const& other) const noexcept
         {
             return !(*this == other);
         }
 
-        bool operator< (UUID const& other) const noexcept
+        bool operator <(UUID const& other) const noexcept
         {
             __m128i mm_left = _mm_load_si128(reinterpret_cast<const __m128i*>(_uuid.data));
             __m128i mm_right = _mm_load_si128(reinterpret_cast<const __m128i*>(other._uuid.data));
@@ -110,15 +111,18 @@ namespace meyr {
             rcmp = (rcmp - 1u) ^ rcmp;
             return cmp < rcmp;
         }
-        bool operator>(UUID const& rhs) const noexcept
+
+        bool operator >(UUID const& rhs) const noexcept
         {
             return *this > rhs;
         }
-        bool operator<=(UUID const& rhs) const noexcept
+
+        bool operator <=(UUID const& rhs) const noexcept
         {
             return !(*this > rhs);
         }
-        bool operator>=(UUID const& rhs) const noexcept
+
+        bool operator >=(UUID const& rhs) const noexcept
         {
             return !(*this < rhs);
         }
