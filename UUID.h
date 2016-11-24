@@ -13,7 +13,7 @@
 #define NO_INLINE __attribute__ ((noinline))
 #endif
 
-namespace meyr {
+namespace meyer {
     class UUID final
     {
     public:
@@ -90,39 +90,6 @@ namespace meyr {
         bool operator !=(UUID const& other) const noexcept
         {
             return !(*this == other);
-        }
-
-        bool operator <(UUID const& other) const noexcept
-        {
-            __m128i mm_left = _mm_load_si128(reinterpret_cast<const __m128i*>(_data));
-            __m128i mm_right = _mm_load_si128(reinterpret_cast<const __m128i*>(other._data));
-
-            const __m128i mm_signs_mask = _mm_xor_si128(mm_left, mm_right);
-            __m128i mm_cmp = _mm_cmpgt_epi8(mm_right, mm_left);
-            __m128i mm_rcmp = _mm_cmpgt_epi8(mm_left, mm_right);
-            mm_cmp = _mm_xor_si128(mm_signs_mask, mm_cmp);
-            mm_rcmp = _mm_xor_si128(mm_signs_mask, mm_rcmp);
-
-            int cmp = _mm_movemask_epi8(mm_cmp);
-            int rcmp = _mm_movemask_epi8(mm_rcmp);
-            cmp = (cmp - 1) ^ cmp;
-            rcmp = (rcmp - 1) ^ rcmp;
-            return cmp < rcmp;
-        }
-
-        bool operator >(UUID const& rhs) const noexcept
-        {
-            return *this > rhs;
-        }
-
-        bool operator <=(UUID const& rhs) const noexcept
-        {
-            return !(*this > rhs);
-        }
-
-        bool operator >=(UUID const& rhs) const noexcept
-        {
-            return !(*this < rhs);
         }
 
         std::array<char, 36> to_string() const
