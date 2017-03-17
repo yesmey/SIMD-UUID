@@ -83,8 +83,8 @@ namespace meyer {
         {
             __m128i mm_left = _mm_load_si128(reinterpret_cast<const __m128i*>(_data));
             __m128i mm_right = _mm_load_si128(reinterpret_cast<const __m128i*>(other._data));
-            __m128i eq = _mm_cmpeq_epi32(mm_left, mm_right);
-            return _mm_testc_si128(eq, _mm_cmpeq_epi32(eq, eq)) != 0;
+            // Very simple comparison. xor left and right and check if any of them are non-zero.
+            return _mm_test_all_zeros(_mm_xor_si128(mm_left, mm_right), _mm_setzero_si128()) != 0;
         }
 
         bool operator !=(UUID const& other) const noexcept
@@ -147,19 +147,16 @@ namespace meyer {
                 10, -1, 11, -1,
                 12, -1, 13, -1);
 
-            const __m128i bind = _mm_set_epi8(0, 0, '-', 0, 0, 0, 0, '-', 0, 0, 0, 0, 0, 0, 0, 0);
             const __m128i mask1 = _mm_shuffle_epi8(lower, MASK_1);
             const __m128i mask2 = _mm_shuffle_epi8(upper, MASK_2);
-
-            __m128i upperSorted = _mm_or_si128(mask1, mask2);
-            upperSorted = _mm_or_si128(upperSorted, bind);
-
             const __m128i mask3 = _mm_shuffle_epi8(lower, MASK_3);
             const __m128i mask4 = _mm_shuffle_epi8(upper, MASK_4);
 
+            const __m128i bind = _mm_set_epi8(0, 0, '-', 0, 0, 0, 0, '-', 0, 0, 0, 0, 0, 0, 0, 0);
             const __m128i bind2 = _mm_set_epi8(0, 0, 0, 0, 0, 0, 0, 0, '-', 0, 0, 0, 0, '-', 0, 0);
-            __m128i lowerSorted = _mm_or_si128(mask3, mask4);
-            lowerSorted = _mm_or_si128(lowerSorted, bind2);
+
+            const __m128i upperSorted = _mm_or_si128(_mm_or_si128(mask1, mask2), bind);
+            const __m128i lowerSorted = _mm_or_si128(_mm_or_si128(mask3, mask4), bind2);
 
             ALIGNED_(16) std::array<char, 36> result;
             _mm_store_si128(reinterpret_cast<__m128i *>(result.data()), upperSorted);
@@ -179,8 +176,8 @@ namespace meyer {
         template<HexCaseType hexCase = HEX_CASE_NONE, ValidationType validation = VALIDATE_ALL>
         int innerParse(const char* ptr)
         {
-            const __m128i str = _mm_lddqu_si128(reinterpret_cast<const __m128i *>(ptr));
-            const __m128i str2 = _mm_lddqu_si128(reinterpret_cast<const __m128i *>(ptr + 19));
+            const __m128i str = _mm_loadu_si128(reinterpret_cast<const __m128i *>(ptr));
+            const __m128i str2 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(ptr + 19));
 
             const __m128i MASK_1 = _mm_setr_epi8(
                 0, 2, 4, 6,
@@ -259,9 +256,8 @@ namespace meyer {
             mask2 = _mm_blendv_epi8(mask2, fixedUppercase2, aboveNineMask2);
 
             const __m128i zero = loadSimdCharArray('0');
-            __m128i hi = _mm_sub_epi8(mask1, zero);
-            hi = _mm_slli_epi16(hi, 4);
             const __m128i lo = _mm_sub_epi8(mask2, zero);
+            const __m128i hi = _mm_slli_epi16(_mm_sub_epi8(mask1, zero), 4);
 
             _mm_store_si128(reinterpret_cast<__m128i *>(_data), _mm_xor_si128(hi, lo));
             return 0;
