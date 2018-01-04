@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cstdint>
-#include <string>
+#include <string_view>
 #include <array>
 #include <nmmintrin.h>
 
@@ -14,35 +14,45 @@
 #endif
 
 namespace meyer {
+
+    enum UUIDFlags : uint8_t
+    {
+        NONE                = 0x00,
+
+        CASE_LOWER          = 0x01,
+        CASE_UPPER          = 0x02,
+
+        BRACKET_PARENTHESIS = 0x04,
+        BRACKET_BRACES      = 0x08,
+
+        VALIDATE_ALL        = 0x10,
+    };
+
+    constexpr enum UUIDFlags operator |(const enum UUIDFlags selfValue, const enum UUIDFlags inValue)
+    {
+        return (enum UUIDFlags)(uint8_t(selfValue) | uint8_t(inValue));
+    }
+
+    constexpr enum UUIDFlags operator &(const enum UUIDFlags selfValue, const enum UUIDFlags inValue)
+    {
+        return (enum UUIDFlags)(uint8_t(selfValue) & uint8_t(inValue));
+    }
+
+    template<UUIDFlags Tflag = NONE, typename = typename std::enable_if<std::is_enum<UUIDFlags>::value, void>::type>
     class UUID final
     {
+        static_assert((Tflag & (CASE_LOWER | CASE_UPPER)) != (CASE_LOWER | CASE_UPPER),
+            "Cannot combine flags CASE_LOWER with CASE_UPPER");
+        static_assert((Tflag & (BRACKET_PARENTHESIS | BRACKET_BRACES)) != (BRACKET_PARENTHESIS | BRACKET_BRACES),
+            "Cannot combine flags BRACKET_PARENTHESIS with BRACKET_BRACES");
+
     public:
-        enum BracketType
-        {
-            BRACKET_NONE = 0,
-            BRACKET_PARENTHESIS,
-            BRACKET_BRACES
-        };
-
-        enum HexCaseType
-        {
-            HEX_CASE_NONE = 0,
-            HEX_CASE_LOWER,
-            HEX_CASE_UPPER
-        };
-
-        enum ValidationType
-        {
-            VALIDATE_NONE = 0,
-            VALIDATE_ALL
-        };
-
         UUID() = default;
         ~UUID() = default;
 
-        UUID(std::string const& str)
+        UUID(std::string_view str)
         {
-            Parse(str);
+            parse(str);
         }
 
         UUID(UUID const& val)
@@ -50,49 +60,40 @@ namespace meyer {
             _mm_store_si128(reinterpret_cast<__m128i *>(_data), _mm_load_si128(reinterpret_cast<const __m128i *>(&val._data[0])));
         }
 
-        template<BracketType bracket = BRACKET_NONE, HexCaseType hexCase = HEX_CASE_NONE, ValidationType validation = VALIDATE_ALL>
-        int Parse(std::string const& str)
+        int parse(std::string_view str)
         {
-            const char* ptr = str.c_str();
-            if (bracket == BRACKET_BRACES)
+            const char* ptr = str.data();
+            if ((Tflag & BRACKET_BRACES) != 0)
             {
                 // Expect the string string to start and end with bracers (no trailing whitespace allowed)
                 if (ptr[0] == '{' && ptr[37] == '}' && str.length() == 38)
-                    return innerParse<hexCase, validation>(ptr + 1);
+                    return innerParse(ptr + 1);
             }
-            if (bracket == BRACKET_PARENTHESIS)
+            else if ((Tflag & BRACKET_PARENTHESIS) != 0)
             {
                 // Same as above with parenthesis
                 if (ptr[0] == '(' && ptr[37] == ')' && str.length() == 38)
-                    return innerParse<hexCase, validation>(ptr + 1);
+                    return innerParse(ptr + 1);
             }
             else
             {
-                if (str.length() == 36)
-                    return innerParse<hexCase, validation>(ptr);
+                if (str.length() == 38) {
+                    if ((ptr[0] == '(' && ptr[37] == ')') || (ptr[0] == '{' && ptr[37] == '}'))
+                        return innerParse(ptr + 1);
+                }
+                else if (str.length() == 36)
+                    return innerParse(ptr);
             }
-            return 1;
+            return 0;
         }
 
-        unsigned char const* Data() const
+        unsigned char const* get_data() const
         {
             return &_data[0];
         }
 
-        bool operator ==(UUID const& other) const noexcept
-        {
-            __m128i mm_left = _mm_load_si128(reinterpret_cast<const __m128i*>(_data));
-            __m128i mm_right = _mm_load_si128(reinterpret_cast<const __m128i*>(other._data));
-            // Very simple comparison. xor left and right and check if any of them are non-zero.
-            return _mm_test_all_zeros(_mm_xor_si128(mm_left, mm_right), _mm_setzero_si128()) != 0;
-        }
-
-        bool operator !=(UUID const& other) const noexcept
-        {
-            return !(*this == other);
-        }
-
-        std::array<char, 36> to_string() const
+        // null terminated guid in a char array
+        std::array<char, 37> to_string() const
         {
             const __m128i a = _mm_set1_epi8(0x0F);
             __m128i lower = _mm_load_si128(reinterpret_cast<const __m128i*>(_data));
@@ -101,7 +102,7 @@ namespace meyer {
             lower = _mm_and_si128(lower, a);
             upper = _mm_and_si128(upper, a);
 
-            const __m128i pastNine = loadSimdCharArray(10);
+            const __m128i pastNine = _mm_set1_epi8(10);
             const __m128i lowerMask = _mm_cmplt_epi8(lower, pastNine);
             const __m128i upperMask = _mm_cmplt_epi8(upper, pastNine);
 
@@ -158,7 +159,7 @@ namespace meyer {
             const __m128i upperSorted = _mm_or_si128(_mm_or_si128(mask1, mask2), bind);
             const __m128i lowerSorted = _mm_or_si128(_mm_or_si128(mask3, mask4), bind2);
 
-            ALIGNED_(16) std::array<char, 36> result;
+            ALIGNED_(16) std::array<char, 37> result;
             _mm_store_si128(reinterpret_cast<__m128i *>(result.data()), upperSorted);
             _mm_store_si128(reinterpret_cast<__m128i *>(result.data() + 16), lowerSorted);
 
@@ -169,12 +170,25 @@ namespace meyer {
             result[33] = v2 & 0xff;
             result[34] = (v1 >> 8) & 0xff;
             result[35] = (v2 >> 8) & 0xff;
+            result[36] = '\0';
             return result;
         }
 
+        bool operator ==(UUID const& other) const noexcept
+        {
+            __m128i mm_left = _mm_load_si128(reinterpret_cast<const __m128i*>(_data));
+            __m128i mm_right = _mm_load_si128(reinterpret_cast<const __m128i*>(other._data));
+            // Very simple comparison. xor left and right and check if any of them are non-zero.
+            return _mm_testz_si128(_mm_xor_si128(mm_left, mm_right), _mm_setzero_si128()) != 0;
+        }
+
+        bool operator !=(UUID const& other) const noexcept
+        {
+            return !(*this == other);
+        }
+
     private:
-        template<HexCaseType hexCase = HEX_CASE_NONE, ValidationType validation = VALIDATE_ALL>
-        int innerParse(const char* ptr)
+        inline int innerParse(const char* ptr)
         {
             const __m128i str = _mm_loadu_si128(reinterpret_cast<const __m128i *>(ptr));
             const __m128i str2 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(ptr + 19));
@@ -221,16 +235,17 @@ namespace meyer {
             mask2 = _mm_or_si128(mask2, mask4);
 
             // Check if all characters are between 0-9, A-Z or a-z
-            if (validation == VALIDATE_ALL)
+            if ((Tflag & VALIDATE_ALL) != 0)
             {
-                const __m128i allowedCharRange = loadAllowedCharRange<hexCase>();
+                ALIGNED_(16) const char _charRanges[17] = { '0', '9', 'A', 'Z', 'a', 'z', 0, -1, 0, -1, 0, -1, 0, -1, 0, -1 };
+                const __m128i allowedCharRange = _mm_load_si128(reinterpret_cast<const __m128i*>(_charRanges));
                 const int cmp = _mm_cmpistri(allowedCharRange, mask1, _SIDD_UBYTE_OPS | _SIDD_CMP_RANGES | _SIDD_NEGATIVE_POLARITY);
                 const int cmp2 = _mm_cmpistri(allowedCharRange, mask2, _SIDD_UBYTE_OPS | _SIDD_CMP_RANGES | _SIDD_NEGATIVE_POLARITY);
                 if (cmp != 16 || cmp2 != 16)
-                    return 1;
+                    return 0;
             }
 
-            const __m128i nine = loadSimdCharArray('9');
+            const __m128i nine = _mm_set1_epi8('9');
             const __m128i aboveNineMask1 = _mm_cmpgt_epi8(mask1, nine);
             const __m128i aboveNineMask2 = _mm_cmpgt_epi8(mask2, nine);
 
@@ -238,62 +253,27 @@ namespace meyer {
             __m128i letterMask2 = _mm_and_si128(mask2, aboveNineMask2);
 
             // Convert upper case when we are mixing upper with lower case
-            if (hexCase == HEX_CASE_NONE)
+            if ((Tflag & CASE_UPPER) != 0 && (Tflag & CASE_LOWER) != 0)
             {
                 // Convert upper case (A-Z) to lower case (a-z)
-                const __m128i toLowerCase = loadSimdCharArray(0x20);
+                const __m128i toLowerCase = _mm_set1_epi8(0x20);
                 letterMask1 = _mm_or_si128(letterMask1, toLowerCase);
                 letterMask2 = _mm_or_si128(letterMask2, toLowerCase);
             }
 
-            const __m128i toHex = (hexCase == HEX_CASE_UPPER) ? loadSimdCharArray('A' - 10 - '0') : loadSimdCharArray('a' - 10 - '0');
+            const __m128i toHex = ((Tflag & CASE_UPPER) != 0) ? _mm_set1_epi8('A' - 10 - '0') : _mm_set1_epi8('a' - 10 - '0');
+
             const __m128i fixedUppercase1 = _mm_sub_epi8(letterMask1, toHex);
             const __m128i fixedUppercase2 = _mm_sub_epi8(letterMask2, toHex);
-
-            //mask1 = _mm_or_si128(_mm_and_si128(aboveNineMask1, fixedUppercase1), _mm_andnot_si128(aboveNineMask1, mask1));
-            //mask2 = _mm_or_si128(_mm_and_si128(aboveNineMask2, fixedUppercase2), _mm_andnot_si128(aboveNineMask2, mask2));
             mask1 = _mm_blendv_epi8(mask1, fixedUppercase1, aboveNineMask1);
             mask2 = _mm_blendv_epi8(mask2, fixedUppercase2, aboveNineMask2);
 
-            const __m128i zero = loadSimdCharArray('0');
+            const __m128i zero = _mm_set1_epi8('0');
             const __m128i lo = _mm_sub_epi8(mask2, zero);
             const __m128i hi = _mm_slli_epi16(_mm_sub_epi8(mask1, zero), 4);
 
             _mm_store_si128(reinterpret_cast<__m128i *>(_data), _mm_xor_si128(hi, lo));
-            return 0;
-        }
-
-        /*
-        * Helper method for loading an aligned 16 byte repeated sse val
-        */
-
-        static __m128i loadSimdCharArray(const char& chr)
-        {
-            ALIGNED_(16) const char y[17] = { chr, chr, chr, chr, chr, chr, chr, chr, chr, chr, chr, chr, chr, chr, chr, chr };
-            return _mm_load_si128(reinterpret_cast<const __m128i*>(y));
-        }
-
-        /*
-        * Helper method for loading the allowed char range depending on HexCaseType (replace with constexpr if whenever avaliable)
-        */
-
-        template<HexCaseType hexCase>
-        auto static loadAllowedCharRange() -> typename std::enable_if<hexCase == HEX_CASE_UPPER, __m128i>::type
-        {
-            ALIGNED_(16) const char _charRanges[17] = { '0', '9', 'A', 'Z', 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1 };
-            return _mm_load_si128(reinterpret_cast<const __m128i*>(_charRanges));
-        }
-        template<HexCaseType hexCase>
-        auto static loadAllowedCharRange() -> typename std::enable_if<hexCase == HEX_CASE_LOWER, __m128i>::type
-        {
-            ALIGNED_(16) const char _charRanges[17] = { '0', '9', 'a', 'z', 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1 };
-            return _mm_load_si128(reinterpret_cast<const __m128i*>(_charRanges));
-        }
-        template<HexCaseType hexCase>
-        auto static loadAllowedCharRange() -> typename std::enable_if<hexCase == HEX_CASE_NONE, __m128i>::type
-        {
-            ALIGNED_(16) const char _charRanges[17] = { '0', '9', 'A', 'Z', 'a', 'z', 0, -1, 0, -1, 0, -1, 0, -1, 0, -1 };
-            return _mm_load_si128(reinterpret_cast<const __m128i*>(_charRanges));
+            return 1;
         }
 
         ALIGNED_(16) unsigned char _data[16];
