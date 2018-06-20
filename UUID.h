@@ -46,7 +46,7 @@ namespace meyr {
             B {00000000-0000-0000-0000-000000000000}
             P (00000000-0000-0000-0000-000000000000)
         */
-        std::array<char, 37> to_string(char format) const
+        std::string to_string(char format) const
         {
             __m128i lower = _mm_load_si128(reinterpret_cast<const __m128i*>(_uuid.data()));
             __m128i upper = _mm_and_si128(_mm_set1_epi8(0xFF >> 4), _mm_srli_epi32(lower, 4));
@@ -91,18 +91,42 @@ namespace meyr {
             const __m128i upperSorted = _mm_or_si128(_mm_or_si128(mask1, mask2), bind);
             const __m128i lowerSorted = _mm_or_si128(_mm_or_si128(mask3, mask4), bind2);
 
-            alignas(16) std::array<char, 37> result;
-            _mm_store_si128(reinterpret_cast<__m128i *>(result.data()), upperSorted);
-            _mm_store_si128(reinterpret_cast<__m128i *>(result.data() + 16), lowerSorted);
+            std::string result;
+			char* dataPtr;
+
+			if (format == 'B' || format == 'b')
+			{
+                result.reserve(39);
+				dataPtr = result.data() + 1;
+				dataPtr[0] = '{';
+				dataPtr[36] = '}';
+				dataPtr[37] = '\0';
+			}
+			else if (format == 'F' || format == 'f')
+			{
+                result.reserve(39);
+				dataPtr = result.data() + 1;
+				dataPtr[0] = '(';
+				dataPtr[36] = ')';
+				dataPtr[37] = '\0';
+			}
+			else
+			{
+                result.reserve(37);
+				dataPtr = result.data();
+				dataPtr[36] = '\0';
+			}
+
+            _mm_storeu_si128(reinterpret_cast<__m128i *>(dataPtr), upperSorted);
+            _mm_storeu_si128(reinterpret_cast<__m128i *>(dataPtr + 16), lowerSorted);
 
             // Did not fit the last four chars. Extract and append them.
             const int v1 = _mm_extract_epi16(upper, 7);
             const int v2 = _mm_extract_epi16(lower, 7);
-            result[32] = v1 & 0xff;
-            result[33] = v2 & 0xff;
-            result[34] = (v1 >> 8) & 0xff;
-            result[35] = (v2 >> 8) & 0xff;
-            result[36] = '\0';
+            dataPtr[32] = v1 & 0xff;
+			dataPtr[33] = v2 & 0xff;
+			dataPtr[34] = (v1 >> 8) & 0xff;
+			dataPtr[35] = (v2 >> 8) & 0xff;
             return result;
         }
 
@@ -124,19 +148,15 @@ namespace meyr {
         inline int innerParse(const char* ptr)
         {
             __m128i mask1, mask2, mask3, mask4;
+            const __m128i str = _mm_loadu_si128(reinterpret_cast<const __m128i *>(ptr));
+
             if (includesHypens) {
-                const __m128i str = _mm_loadu_si128(reinterpret_cast<const __m128i *>(ptr));
                 const __m128i str2 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(ptr + 19));
 
-                const __m128i MASK_1 = _mm_setr_epi8(0, 2, 4, 6, 9, 11, 14, -1, -1, -1, -1, -1, -1, -1, -1, -1);
-                const __m128i MASK_2 = _mm_setr_epi8(1, 3, 5, 7, 10, 12, 15, -1, -1, -1, -1, -1, -1, -1, -1, -1);
-                const __m128i MASK_3 = _mm_setr_epi8(-1, -1, -1, -1, -1, -1, -1, -1, 0, 2, 5, 7, 9, 11, 13, -1);
-                const __m128i MASK_4 = _mm_setr_epi8(-1, -1, -1, -1, -1, -1, -1, -1, 1, 3, 6, 8, 10, 12, 14, -1);
-
-                mask1 = _mm_shuffle_epi8(str, MASK_1);
-                mask2 = _mm_shuffle_epi8(str, MASK_2);
-                mask3 = _mm_shuffle_epi8(str2, MASK_3);
-                mask4 = _mm_shuffle_epi8(str2, MASK_4);
+                mask1 = _mm_shuffle_epi8(str, _mm_setr_epi8(0, 2, 4, 6, 9, 11, 14, -1, -1, -1, -1, -1, -1, -1, -1, -1));
+                mask2 = _mm_shuffle_epi8(str, _mm_setr_epi8(1, 3, 5, 7, 10, 12, 15, -1, -1, -1, -1, -1, -1, -1, -1, -1));
+                mask3 = _mm_shuffle_epi8(str2, _mm_setr_epi8(-1, -1, -1, -1, -1, -1, -1, -1, 0, 2, 5, 7, 9, 11, 13, -1));
+                mask4 = _mm_shuffle_epi8(str2, _mm_setr_epi8(-1, -1, -1, -1, -1, -1, -1, -1, 1, 3, 6, 8, 10, 12, 14, -1));
 
                 // Since we had hypens between the character we have 36 characters which does not fit in two 16 char loads
                 // therefor we must manually insert them here
@@ -146,22 +166,12 @@ namespace meyr {
                 mask4 = _mm_insert_epi8(mask4, ptr[35], 15);
             }
             else {
-                const __m128i str = _mm_loadu_si128(reinterpret_cast<const __m128i *>(ptr));
                 const __m128i str2 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(ptr + 16));
 
-                /*
-                 * TODO
-                */
-                
-               /* const __m128i MASK_1 = _mm_setr_epi8(0, 2, 4, 6, 8, 10, 12, 14, -1, -1, -1, -1, -1, -1, -1, -1);
-                const __m128i MASK_2 = _mm_setr_epi8(1, 3, 5, 7, 9, 11, 13, 15, -1, -1, -1, -1, -1, -1, -1, -1);
-                const __m128i MASK_3 = _mm_setr_epi8(-1, -1, -1, -1, -1, -1, -1, -1, 0, 2, 4, 6, 8, 10, 12, 14);
-                const __m128i MASK_4 = _mm_setr_epi8(-1, -1, -1, -1, -1, -1, -1, -1, 1, 3, 5, 7, 9, 11, 13, 15);
-
-                mask1 = _mm_shuffle_epi8(str, MASK_1);
-                mask2 = _mm_shuffle_epi8(str, MASK_2);
-                mask3 = _mm_shuffle_epi8(str2, MASK_3);
-                mask4 = _mm_shuffle_epi8(str2, MASK_4);*/
+                mask1 = _mm_shuffle_epi8(str, _mm_setr_epi8(0, 2, 4, 6, 8, 10, 12, 14, -1, -1, -1, -1, -1, -1, -1, -1));
+                mask2 = _mm_shuffle_epi8(str, _mm_setr_epi8(1, 3, 5, 7, 9, 11, 13, 15, -1, -1, -1, -1, -1, -1, -1, -1));
+                mask3 = _mm_shuffle_epi8(str2, _mm_setr_epi8(-1, -1, -1, -1, -1, -1, -1, -1, 0, 2, 4, 6, 8, 10, 12, 14));
+                mask4 = _mm_shuffle_epi8(str2, _mm_setr_epi8(-1, -1, -1, -1, -1, -1, -1, -1, 1, 3, 5, 7, 9, 11, 13, 15));
             }
 
             // Merge [aaaaaaaa|aaaaaaaa|00000000|00000000] | [00000000|00000000|bbbbbbbb|bbbbbbbb]
