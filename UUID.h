@@ -38,10 +38,7 @@ namespace meyr {
             return _uuid;
         }
 
-        // null terminated guid in a char array
-        // todo: fix formatting
         /*
-            N 00000000000000000000000000000000
             D 00000000-0000-0000-0000-000000000000
             B {00000000-0000-0000-0000-000000000000}
             P (00000000-0000-0000-0000-000000000000)
@@ -92,30 +89,30 @@ namespace meyr {
             const __m128i lowerSorted = _mm_or_si128(_mm_or_si128(mask3, mask4), bind2);
 
             std::string result;
-			char* dataPtr;
+            char* dataPtr;
 
-			if (format == 'B' || format == 'b')
-			{
+            if (format == 'B' || format == 'b')
+            {
                 result.reserve(39);
-				dataPtr = result.data() + 1;
-				dataPtr[0] = '{';
-				dataPtr[36] = '}';
-				dataPtr[37] = '\0';
-			}
-			else if (format == 'F' || format == 'f')
-			{
+                dataPtr = result.data() + 1;
+                dataPtr[0] = '{';
+                dataPtr[36] = '}';
+                dataPtr[37] = '\0';
+            }
+            else if (format == 'F' || format == 'f')
+            {
                 result.reserve(39);
-				dataPtr = result.data() + 1;
-				dataPtr[0] = '(';
-				dataPtr[36] = ')';
-				dataPtr[37] = '\0';
-			}
-			else
-			{
+                dataPtr = result.data() + 1;
+                dataPtr[0] = '(';
+                dataPtr[36] = ')';
+                dataPtr[37] = '\0';
+            }
+            else
+            {
                 result.reserve(37);
-				dataPtr = result.data();
-				dataPtr[36] = '\0';
-			}
+                dataPtr = result.data();
+                dataPtr[36] = '\0';
+            }
 
             _mm_storeu_si128(reinterpret_cast<__m128i *>(dataPtr), upperSorted);
             _mm_storeu_si128(reinterpret_cast<__m128i *>(dataPtr + 16), lowerSorted);
@@ -124,9 +121,9 @@ namespace meyr {
             const int v1 = _mm_extract_epi16(upper, 7);
             const int v2 = _mm_extract_epi16(lower, 7);
             dataPtr[32] = v1 & 0xff;
-			dataPtr[33] = v2 & 0xff;
-			dataPtr[34] = (v1 >> 8) & 0xff;
-			dataPtr[35] = (v2 >> 8) & 0xff;
+            dataPtr[33] = v2 & 0xff;
+            dataPtr[34] = (v1 >> 8) & 0xff;
+            dataPtr[35] = (v2 >> 8) & 0xff;
             return result;
         }
 
